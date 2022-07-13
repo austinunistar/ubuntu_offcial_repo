@@ -1,0 +1,76 @@
+---
+  - name: make a backup copy of the sources.list configuration file
+    ansible.builtin.file:
+      src: '/etc/apt/sources.list'
+      dest: '/etc/apt/sources.list.org'
+      state: hard
+      remote_src: yes
+    ignore_errors: yes
+    tags: sources_list_update
+
+  - name: check distribution major version
+    debug: 
+      msg: "{{ ansible_distribution_major_version }}"
+    tags: sources_list_update
+
+  - name: update sources list for ubuntu 18.04
+    ansible.builtin.template:
+      src: 'sources.list.18.04.j2'
+      dest: '/etc/apt/sources.list'
+      owner: 'root'
+      group: 'root'
+      mode: '0644'
+      backup: yes
+    when: ansible_distribution_major_version == '18'
+    tags: sources_list_update
+
+  - name: update sources list for ubuntu 20.04
+    ansible.builtin.template:
+      src: 'sources.list.20.04.j2'
+      dest: '/etc/apt/sources.list'
+      owner: 'root'
+      group: 'root'
+      mode: '0644'
+      backup: yes
+    when: ansible_distribution_major_version == '20'
+    tags: sources_list_update
+
+  - name: update sources list for ubuntu 22.04
+    ansible.builtin.template:
+      src: 'sources.list.22.04.j2'
+      dest: '/etc/apt/sources.list'
+      owner: 'root'
+      group: 'root'
+      mode: '0644'
+      backup: yes
+    when: ansible_distribution_major_version == '22'
+    tags: sources_list_update
+
+  - name: collect all packages to their version
+    ansible.builtin.shell: |
+            dpkg -l | awk '{print $2 "," $3}' | sed -e '1,3d' | sed -e '2d' > /tmp/pkg_list.csv
+    tags: pkg_version_collect
+
+  - name: create a update list file
+    ansible.builtin.template:
+      src: 'update_list.j2'
+      dest: '/tmp/update_list.csv'
+      owner: 'root'
+      group: 'root'
+      mode: '0644'
+      backup: yes
+    tags: update_list_create
+
+  - name: Compare package version between update list and pkg list
+    ansible.builtin.shell: |
+            grep -vf /tmp/pkg_list.csv /tmp/update_list.csv > /tmp/unmatch_list.csv
+    tags: pkg_compare
+
+  - name: disable automatic updates
+    ansible.builtin.replace:
+      path: '/etc/apt/apt.conf.d/20auto-upgrades'
+      regexp: APT::Periodic::Update-Package-Lists "1";
+      replace: APT::Periodic::Update-Package-Lists "0";
+      backup: yes
+    tags: disable_auto_updates
+    
